@@ -5,3 +5,7 @@ coverage/
 *.db-journal
 .env
 tsconfig.tsbuildinfo
+e2e.db
+test-results/
+playwright-report/
+.playwright/

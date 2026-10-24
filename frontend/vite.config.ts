@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     // In development the SPA calls /api on its own origin; Vite forwards it to the backend.
-    proxy: { '/api': 'http://localhost:4000' },
+    proxy: { '/api': process.env.API_PROXY_TARGET ?? 'http://localhost:4000' },
   },
   test: {
     environment: 'jsdom',
