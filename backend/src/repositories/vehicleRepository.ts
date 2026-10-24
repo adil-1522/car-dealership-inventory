@@ -114,6 +114,27 @@ export class VehicleRepository {
     return this.findById(id);
   }
 
+  /**
+   * Atomically removes `amount` units if enough are in stock.
+   * The stock check lives in the WHERE clause so concurrent purchases can never oversell.
+   */
+  decrementStock(id: number, amount: number): boolean {
+    const result = this.db
+      .prepare(
+        `UPDATE vehicles SET quantity = quantity - ?, updated_at = datetime('now')
+         WHERE id = ? AND quantity >= ?`,
+      )
+      .run(amount, id, amount);
+    return result.changes > 0;
+  }
+
+  incrementStock(id: number, amount: number): boolean {
+    const result = this.db
+      .prepare(`UPDATE vehicles SET quantity = quantity + ?, updated_at = datetime('now') WHERE id = ?`)
+      .run(amount, id);
+    return result.changes > 0;
+  }
+
   delete(id: number): boolean {
     return this.db.prepare('DELETE FROM vehicles WHERE id = ?').run(id).changes > 0;
   }

@@ -1,4 +1,4 @@
-import { NotFoundError, ValidationError } from '../errors';
+import { ConflictError, NotFoundError, ValidationError } from '../errors';
 import type { VehicleRepository } from '../repositories/vehicleRepository';
 import type { NewVehicle, Vehicle, VehicleFilters, VehicleUpdate } from '../types';
 
@@ -32,6 +32,25 @@ export class VehicleService {
     const vehicle = this.vehicles.update(id, changes);
     if (!vehicle) throw new NotFoundError(`Vehicle ${id} not found`);
     return vehicle;
+  }
+
+  purchase(id: number, quantity = 1): Vehicle {
+    if (!this.vehicles.decrementStock(id, quantity)) {
+      const vehicle = this.get(id); // throws NotFoundError if missing
+      throw new ConflictError(
+        vehicle.quantity === 0
+          ? `${vehicle.make} ${vehicle.model} is out of stock`
+          : `Only ${vehicle.quantity} in stock for ${vehicle.make} ${vehicle.model}`,
+      );
+    }
+    return this.get(id);
+  }
+
+  restock(id: number, quantity: number): Vehicle {
+    if (!this.vehicles.incrementStock(id, quantity)) {
+      throw new NotFoundError(`Vehicle ${id} not found`);
+    }
+    return this.get(id);
   }
 
   remove(id: number): void {

@@ -2,7 +2,14 @@ import { Router } from 'express';
 import { requireRole } from '../middleware/auth';
 import { parseOrThrow } from '../middleware/validate';
 import type { VehicleService } from '../services/vehicleService';
-import { createVehicleSchema, idParamSchema, searchSchema, updateVehicleSchema } from '../validation/schemas';
+import {
+  createVehicleSchema,
+  idParamSchema,
+  purchaseSchema,
+  restockSchema,
+  searchSchema,
+  updateVehicleSchema,
+} from '../validation/schemas';
 
 /** Vehicle catalogue routes. Expects to be mounted behind `authenticate`. */
 export function vehicleRoutes(vehicleService: VehicleService): Router {
@@ -34,6 +41,18 @@ export function vehicleRoutes(vehicleService: VehicleService): Router {
   router.delete('/:id', adminOnly, (req, res) => {
     vehicleService.remove(parseOrThrow(idParamSchema, req.params.id));
     res.status(204).end();
+  });
+
+  router.post('/:id/purchase', (req, res) => {
+    const id = parseOrThrow(idParamSchema, req.params.id);
+    const { quantity } = parseOrThrow(purchaseSchema, req.body ?? {});
+    res.json(vehicleService.purchase(id, quantity));
+  });
+
+  router.post('/:id/restock', adminOnly, (req, res) => {
+    const id = parseOrThrow(idParamSchema, req.params.id);
+    const { quantity } = parseOrThrow(restockSchema, req.body ?? {});
+    res.json(vehicleService.restock(id, quantity));
   });
 
   return router;

@@ -67,3 +67,12 @@ export const idParamSchema = z.coerce
   .number({ error: 'Vehicle id must be a positive integer' })
   .int('Vehicle id must be a positive integer')
   .positive('Vehicle id must be a positive integer');
+
+const positiveQuantity = z
+  .number({ error: 'Quantity must be a number' })
+  .int('Quantity must be a whole number')
+  .positive('Quantity must be at least 1');
+
+export const purchaseSchema = z.object({ quantity: positiveQuantity.default(1) });
+
+export const restockSchema = z.object({ quantity: positiveQuantity });
