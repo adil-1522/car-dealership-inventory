@@ -44,3 +44,27 @@ export async function loginAsAdmin(ctx: TestContext): Promise<string> {
     .send({ email: 'admin@example.com', password: 'AdminPass123' });
   return res.body.token;
 }
+
+export const sampleVehicle = {
+  make: 'Toyota',
+  model: 'Camry',
+  category: 'Sedan',
+  price: 27000,
+  quantity: 5,
+};
+
+/** Creates a vehicle through the API as admin and returns the response body. */
+export async function createVehicle(
+  app: Express,
+  adminToken: string,
+  overrides: Partial<typeof sampleVehicle> & Record<string, unknown> = {},
+) {
+  const res = await request(app)
+    .post('/api/vehicles')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ ...sampleVehicle, ...overrides });
+  if (res.status !== 201) {
+    throw new Error(`create vehicle failed: ${res.status} ${JSON.stringify(res.body)}`);
+  }
+  return res.body;
+}
