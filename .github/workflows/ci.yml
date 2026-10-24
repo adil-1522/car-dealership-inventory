@@ -1,0 +1,175 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend · typecheck & tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage/
+          retention-days: 14
+
+  frontend:
+    name: Frontend · typecheck & tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/
+          retention-days: 14
+
+  api-smoke:
+    name: API smoke test
+    needs: backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install and build
+        working-directory: backend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Start the API
+        working-directory: backend
+        env:
+          PORT: 4000
+          DATABASE_PATH: ./ci.db
+          JWT_SECRET: ci-smoke-test-secret
+          ADMIN_EMAIL: admin@dealership.com
+          ADMIN_PASSWORD: Admin@123
+        run: |
+          npm start &
+          for i in $(seq 1 30); do
+            curl -sf localhost:4000/api/health && break
+            sleep 1
+          done
+
+      # Exercises the real binary end to end: auth, admin-only writes,
+      # stock decrement and the out-of-stock conflict.
+      - name: Walk through the API
+        run: |
+          set -euo pipefail
+
+          echo "::group::Health"
+          curl -sf localhost:4000/api/health
+          echo "::endgroup::"
+
+          echo "::group::Admin login"
+          ADMIN=$(curl -sf -X POST localhost:4000/api/auth/login \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"admin@dealership.com","password":"Admin@123"}' | jq -r .token)
+          test -n "$ADMIN" && test "$ADMIN" != null
+          echo "::endgroup::"
+
+          echo "::group::Register a shopper"
+          USER=$(curl -sf -X POST localhost:4000/api/auth/register \
+            -H 'Content-Type: application/json' \
+            -d '{"name":"CI Buyer","email":"ci@example.com","password":"Secret123"}' | jq -r .token)
+          test -n "$USER" && test "$USER" != null
+          echo "::endgroup::"
+
+          echo "::group::Admin adds a vehicle"
+          ID=$(curl -sf -X POST localhost:4000/api/vehicles \
+            -H "Authorization: Bearer $ADMIN" -H 'Content-Type: application/json' \
+            -d '{"make":"Toyota","model":"Camry","category":"Sedan","price":27500,"quantity":1}' | jq -r .id)
+          echo "created vehicle $ID"
+          echo "::endgroup::"
+
+          echo "::group::A shopper cannot add a vehicle (expect 403)"
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST localhost:4000/api/vehicles \
+            -H "Authorization: Bearer $USER" -H 'Content-Type: application/json' \
+            -d '{"make":"X","model":"Y","category":"Z","price":1}')
+          test "$CODE" = "403" || { echo "expected 403, got $CODE"; exit 1; }
+          echo "::endgroup::"
+
+          echo "::group::Search finds it"
+          COUNT=$(curl -sf "localhost:4000/api/vehicles/search?make=toyota&maxPrice=30000" \
+            -H "Authorization: Bearer $USER" | jq 'length')
+          test "$COUNT" -ge 1 || { echo "search returned nothing"; exit 1; }
+          echo "::endgroup::"
+
+          echo "::group::Purchase the last unit"
+          LEFT=$(curl -sf -X POST "localhost:4000/api/vehicles/$ID/purchase" \
+            -H "Authorization: Bearer $USER" -H 'Content-Type: application/json' -d '{}' | jq -r .quantity)
+          test "$LEFT" = "0" || { echo "expected 0 left, got $LEFT"; exit 1; }
+          echo "::endgroup::"
+
+          echo "::group::Buying again is refused (expect 409)"
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "localhost:4000/api/vehicles/$ID/purchase" \
+            -H "Authorization: Bearer $USER" -H 'Content-Type: application/json' -d '{}')
+          test "$CODE" = "409" || { echo "expected 409, got $CODE"; exit 1; }
+          echo "::endgroup::"
+
+          echo "::group::Unauthenticated access is refused (expect 401)"
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' localhost:4000/api/vehicles)
+          test "$CODE" = "401" || { echo "expected 401, got $CODE"; exit 1; }
+          echo "::endgroup::"
+
+          echo "All API smoke checks passed."

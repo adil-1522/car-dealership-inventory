@@ -24,7 +24,14 @@ const vehicleFields = {
     .int('Quantity must be a whole number')
     .nonnegative('Quantity cannot be negative'),
   year: z.number().int().min(1886).max(2100).nullable(),
-  imageUrl: z.string().trim().url('Image URL must be a valid URL').max(2048).nullable(),
+  // Only http(s): a bare .url() would accept javascript: and data: URIs, which end up in an <img src>.
+  imageUrl: z
+    .string()
+    .trim()
+    .max(2048)
+    .refine((value) => /^https?:\/\//i.test(value), 'Image URL must start with http:// or https://')
+    .refine((value) => URL.canParse(value), 'Image URL must be a valid URL')
+    .nullable(),
   description: z.string().trim().max(2000).nullable(),
 };
 
