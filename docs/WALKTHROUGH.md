@@ -1,7 +1,7 @@
 # End-to-end walkthrough
 
-How the system fits together, written so you can explain any part of it out loud. Read it top to
-bottom once; after that the [Interview prep](#interview-prep) section at the end is the cheat sheet.
+How the system fits together: the architecture, and what happens on each request from the browser
+click through to the database and back.
 
 ---
 
@@ -87,9 +87,9 @@ that's why tests can run without mocks and without clearing tables between runs.
 `AuthContext` writes the token and user to `localStorage` and sets React state. The state change
 re-renders `App.tsx`, the `GuestOnly` guard sees a user and redirects to the dashboard.
 
-> **Why localStorage?** It survives a page refresh and keeps the kata simple. For production I'd
-> move the token to an httpOnly cookie so JavaScript (and therefore an XSS payload) cannot read it.
-> Worth saying out loud in an interview — it shows you know the trade-off you made.
+> **Why localStorage?** It survives a page refresh and keeps the kata simple. The trade-off is that
+> JavaScript can read it, so an XSS flaw would expose the token. For production the token belongs
+> in an httpOnly cookie.
 
 ---
 
@@ -280,48 +280,3 @@ Tests are behaviour-focused: they go through the HTTP API with Supertest and thr
 DOM with Testing Library, rather than asserting on internals. That means a refactor (like extracting
 `VehicleService`) does not break a single test — which is the whole point.
 
----
-
-## Interview prep
-
-Likely questions, and the short answers.
-
-**"Walk me through what happens when a user buys a car."**
-Click → `POST /api/vehicles/:id/purchase` → `authenticate` verifies the JWT and sets `req.user` →
-zod validates the quantity → `VehicleService.purchase` calls a single conditional `UPDATE` that
-decrements only if stock allows → 0 rows changed means 409, 1 row means success → the updated
-vehicle comes back and the card updates in place with a toast.
-
-**"How do you prevent overselling?"**
-The stock check is in the SQL `WHERE` clause, so the check and the write are one atomic statement.
-A read-then-write would let two concurrent buyers both pass the check. There's a test with six
-concurrent purchases against three units asserting exactly three succeed.
-
-**"How does authentication work?"**
-bcrypt-hashed passwords (10 rounds), a JWT signed with a server secret carrying `sub` and `role`,
-sent as `Authorization: Bearer`. The `authenticate` middleware verifies signature and expiry on
-every vehicle route; `requireRole('admin')` gates the writes.
-
-**"Could someone make themselves an admin?"**
-No. The registration schema has no `role` field and the service hardcodes `'user'`. Admins are
-seeded from environment variables. And since the role is read from the signed token, editing
-localStorage doesn't help — the signature wouldn't match.
-
-**"How do you avoid SQL injection?"**
-All values are bound parameters; only column names are interpolated and they come from a fixed
-list in the code. LIKE wildcards in user input are escaped too.
-
-**"Why SQLite?"**
-The brief rules out in-memory; SQLite is a real file-backed database with no setup for a reviewer.
-Because SQL is confined to the repository layer, moving to Postgres means changing those two files.
-
-**"What would you do differently with more time?"**
-httpOnly cookies instead of localStorage for the token; refresh tokens; rate limiting on the auth
-routes; pagination on the vehicle list; an orders table so purchases are recorded as transactions
-rather than just a stock decrement; and Playwright end-to-end tests in CI.
-
-**"Where did the AI actually help, and where did you override it?"**
-It was fast at scaffolding and boilerplate. I overrode it on the purchase implementation (it first
-wrote read-then-write; I required a single atomic `UPDATE` and added the concurrency test), and on
-error messages that leaked whether an email was registered. Two real bugs were caught by running
-the app, not by reading code — see the `fix(web)` commit.

@@ -1,5 +1,7 @@
 # AutoVault — Car Dealership Inventory System
 
+[![CI](https://github.com/adil-1522/car-dealership-inventory/actions/workflows/ci.yml/badge.svg)](https://github.com/adil-1522/car-dealership-inventory/actions/workflows/ci.yml)
+
 A full-stack inventory system for a car dealership, built test-first (TDD). Shoppers browse and
 buy vehicles; admins manage the catalogue and restock it.
 
@@ -7,7 +9,9 @@ buy vehicles; admins manage the catalogue and restock it.
 
 - **Backend** — Node.js + TypeScript, Express 5, SQLite (better-sqlite3), JWT auth, Jest + Supertest
 - **Frontend** — React 19 + TypeScript, Vite, Tailwind CSS v4, React Router, Vitest + Testing Library
-- **Tests** — 126 tests (78 backend, 48 frontend), ~99% backend and ~98% frontend coverage
+- **E2E** — Playwright, running the real stack in Chromium and a mobile viewport
+- **Tests** — 214 tests (106 backend, 48 frontend, 60 end-to-end), ~99% backend and ~98% frontend coverage
+- **CI** — every push runs typechecks, all three suites, both production builds and an API smoke test
 
 ---
 
@@ -201,18 +205,20 @@ car-dealership/
 ## Testing
 
 ```bash
-cd backend  && npm test            # 78 tests
+cd backend  && npm test            # 106 tests
 cd backend  && npm run test:coverage
 cd frontend && npm test            # 48 tests
 cd frontend && npm run test:coverage
+cd e2e      && npm test            # 60 browser tests (starts both servers itself)
 ```
 
 Full output and coverage tables: **[docs/TEST_REPORT.md](docs/TEST_REPORT.md)**.
 
-| Suite    | Tests | Statements | Branches |
-| -------- | ----- | ---------- | -------- |
-| Backend  | 78    | 99.6%      | 93.1%    |
-| Frontend | 48    | 98.5%      | 92.3%    |
+| Suite      | Tests | Statements | Branches |
+| ---------- | ----- | ---------- | -------- |
+| Backend    | 106   | 99.6%      | 93.5%    |
+| Frontend   | 48    | 98.5%      | 92.3%    |
+| End-to-end | 60    | —          | —        |
 
 The commit history follows **Red → Green → Refactor**: each `test(...)` commit adds failing tests,
 the following `feat(...)` commit makes them pass.
@@ -320,3 +326,102 @@ and TDD is a good defence: a test written before the implementation is a specifi
 to satisfy, not something it can talk its way around. The two bugs above are the clearest lesson —
 passing unit tests are not the same as a working application, so I made running the real app part
 of the loop.
+
+---
+
+## Running it locally, step by step
+
+Exact commands, from a clean machine. Two terminals.
+
+### 0. Prerequisites
+
+```bash
+node --version   # must be 20 or newer (built on 22)
+git --version
+```
+
+Get Node from https://nodejs.org if the version is too old.
+
+### 1. Clone
+
+```bash
+git clone https://github.com/adil-1522/car-dealership-inventory.git
+cd car-dealership-inventory
+```
+
+### 2. Terminal 1 — the API
+
+```bash
+cd backend
+npm install           # ~30s
+cp .env.example .env  # Windows PowerShell: copy .env.example .env
+npm run seed          # loads 8 demo cars (optional but recommended)
+npm run dev
+```
+
+You should see:
+
+```
+Car Dealership API listening on http://localhost:4000
+```
+
+Leave it running. Check it in another shell or your browser:
+
+```bash
+curl http://localhost:4000/api/health      # → {"status":"ok"}
+```
+
+### 3. Terminal 2 — the web app
+
+```bash
+cd frontend
+npm install           # ~40s
+npm run dev
+```
+
+You should see:
+
+```
+➜  Local:   http://localhost:5173/
+```
+
+### 4. Open it
+
+Go to **http://localhost:5173** — you'll land on the login page.
+
+| To see…            | Do this                                                              |
+| ------------------ | -------------------------------------------------------------------- |
+| The shopper view   | Click *Create an account*, register with any email and a 6+ char password |
+| The admin view     | Sign in with `admin@dealership.com` / `Admin@123`                      |
+
+**Things worth clicking:**
+
+1. **Purchase** a car and watch the stock badge drop and the toast appear.
+2. Buy the **Jeep Wrangler** down to zero — the button disables and reads *Sold out*.
+3. As admin, **Restock** it and watch it become buyable again.
+4. As admin, **+ Add vehicle**, then **Edit** and **Delete** it.
+5. Filter by **Category: SUV** and a **Max price**, then **Reset**.
+6. Log out as admin, register as a shopper — the Edit/Delete/Restock buttons are gone.
+7. Narrow the browser window to phone width — the layout reflows.
+
+### 5. Run the tests
+
+```bash
+cd backend  && npm test    # 106 tests
+cd frontend && npm test    # 48 tests
+
+cd e2e                     # real browser tests
+npm install
+npx playwright install chromium
+npm test                   # 60 tests; starts both servers itself
+```
+
+### Troubleshooting
+
+| Problem | Fix |
+| --- | --- |
+| `EADDRINUSE: 4000` | Something else uses the port. `lsof -ti:4000 \| xargs kill` (macOS/Linux) or change `PORT` in `.env`. |
+| Login says *Invalid email or password* for the admin | The admin is seeded from `.env`. Make sure you copied `.env.example` and restarted the backend. |
+| Dashboard is empty | Run `npm run seed` in `backend/`, then refresh. |
+| `fetch failed` / network errors in the UI | The backend terminal isn't running. Start it first. |
+| Want a clean slate | Stop the backend, delete `backend/dealership.db`, start it again and re-seed. |

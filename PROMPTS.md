@@ -66,11 +66,27 @@ history is authored by that account.
 
 ### Prompt 5 — documentation depth
 
-> `in thT DOCUMENttion include explanation end ti end as well so tht i can prepare accrodingl`
+> `in thT DOCUMENttion include explanation end ti end as well`
 
 **What happened:** wrote [`docs/WALKTHROUGH.md`](docs/WALKTHROUGH.md) — a request-by-request
-narrative of the whole system (startup, registration, login, dashboard load, search, purchase,
-admin actions, error handling, the TDD cycle) ending with an interview-prep Q&A section.
+narrative of the whole system: startup, registration, login, dashboard load, search, purchase,
+admin actions, error handling and the TDD cycle.
+
+---
+
+### Prompt 6 — more rigour, and proof it passes
+
+> `DO TEST FROM VEEVRY NGLE AND THEN ADD ACIPASS WILL BE BEETER`
+
+**What happened:** added 28 adversarial backend tests (SQL injection payloads, tampered and
+`alg:none` tokens, privilege-escalation attempts, oversized input, data-exposure checks,
+interleaved purchase/restock stress). One of them found a real hole — zod's `.url()` accepts
+`javascript:` and `data:` URIs, which would have reached an `<img src>` — fixed by restricting
+image URLs to http(s).
+
+Then added a Playwright suite (60 tests, desktop + mobile viewports) that drives the real stack in
+a browser, and a GitHub Actions workflow running typechecks, all three suites, both production
+builds and a curl-driven API smoke test on every push.
 
 ---
 
