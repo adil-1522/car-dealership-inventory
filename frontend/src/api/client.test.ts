@@ -53,11 +53,11 @@ describe('apiRequest', () => {
   it('throws an ApiError carrying the server message and status', async () => {
     mockFetch(409, { error: 'Camry is out of stock' });
 
-    const error = await apiRequest('/vehicles/1/purchase', { method: 'POST' }).catch((e) => e);
+    const error: unknown = await apiRequest('/vehicles/1/purchase', { method: 'POST' }).catch((e) => e);
 
     expect(error).toBeInstanceOf(ApiError);
-    expect(error.status).toBe(409);
-    expect(error.message).toBe('Camry is out of stock');
+    expect((error as ApiError).status).toBe(409);
+    expect((error as ApiError).message).toBe('Camry is out of stock');
   });
 
   it('notifies listeners on 401 so the app can log out', async () => {
