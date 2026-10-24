@@ -3,6 +3,6 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   roots: ['<rootDir>/tests'],
-  collectCoverageFrom: ['src/**/*.ts', '!src/server.ts'],
+  collectCoverageFrom: ['src/**/*.ts', '!src/server.ts', '!src/scripts/**'],
   coverageReporters: ['text', 'text-summary', 'html'],
 };

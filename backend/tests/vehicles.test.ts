@@ -1,6 +1,7 @@
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import {
+  bearer,
   buildTestContext,
   createVehicle,
   loginAsAdmin,
@@ -22,8 +23,6 @@ describe('Vehicles API', () => {
 
   afterEach(() => ctx.db.close());
 
-  const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
-
   describe('authentication', () => {
     it('rejects requests without a token', async () => {
       const res = await request(ctx.app).get('/api/vehicles');
@@ -39,14 +38,14 @@ describe('Vehicles API', () => {
 
     it('rejects a token signed with a different secret', async () => {
       const forged = jwt.sign({ role: 'admin' }, 'wrong-secret', { subject: '1' });
-      const res = await request(ctx.app).get('/api/vehicles').set(auth(forged));
+      const res = await request(ctx.app).get('/api/vehicles').set(bearer(forged));
 
       expect(res.status).toBe(401);
     });
 
     it('rejects an expired token', async () => {
       const expired = jwt.sign({ role: 'user' }, 'test-secret', { subject: '1', expiresIn: -10 });
-      const res = await request(ctx.app).get('/api/vehicles').set(auth(expired));
+      const res = await request(ctx.app).get('/api/vehicles').set(bearer(expired));
 
       expect(res.status).toBe(401);
     });
@@ -56,7 +55,7 @@ describe('Vehicles API', () => {
     it('lets an admin add a vehicle and returns it with an id', async () => {
       const res = await request(ctx.app)
         .post('/api/vehicles')
-        .set(auth(adminToken))
+        .set(bearer(adminToken))
         .send({ ...sampleVehicle, year: 2024, description: 'Reliable family sedan' });
 
       expect(res.status).toBe(201);
@@ -69,7 +68,7 @@ describe('Vehicles API', () => {
     });
 
     it('forbids regular users from adding vehicles', async () => {
-      const res = await request(ctx.app).post('/api/vehicles').set(auth(userToken)).send(sampleVehicle);
+      const res = await request(ctx.app).post('/api/vehicles').set(bearer(userToken)).send(sampleVehicle);
 
       expect(res.status).toBe(403);
     });
@@ -82,14 +81,14 @@ describe('Vehicles API', () => {
       ['fractional quantity', { ...sampleVehicle, quantity: 1.5 }],
       ['negative quantity', { ...sampleVehicle, quantity: -3 }],
     ])('rejects %s with 400', async (_label, body) => {
-      const res = await request(ctx.app).post('/api/vehicles').set(auth(adminToken)).send(body);
+      const res = await request(ctx.app).post('/api/vehicles').set(bearer(adminToken)).send(body);
 
       expect(res.status).toBe(400);
     });
 
     it('defaults quantity to 0 when omitted', async () => {
       const { quantity: _q, ...withoutQuantity } = sampleVehicle;
-      const res = await request(ctx.app).post('/api/vehicles').set(auth(adminToken)).send(withoutQuantity);
+      const res = await request(ctx.app).post('/api/vehicles').set(bearer(adminToken)).send(withoutQuantity);
 
       expect(res.status).toBe(201);
       expect(res.body.quantity).toBe(0);
@@ -98,7 +97,7 @@ describe('Vehicles API', () => {
 
   describe('GET /api/vehicles', () => {
     it('returns an empty list when there is no inventory', async () => {
-      const res = await request(ctx.app).get('/api/vehicles').set(auth(userToken));
+      const res = await request(ctx.app).get('/api/vehicles').set(bearer(userToken));
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual([]);
@@ -108,7 +107,7 @@ describe('Vehicles API', () => {
       await createVehicle(ctx.app, adminToken);
       await createVehicle(ctx.app, adminToken, { make: 'Honda', model: 'Civic', quantity: 0 });
 
-      const res = await request(ctx.app).get('/api/vehicles').set(auth(userToken));
+      const res = await request(ctx.app).get('/api/vehicles').set(bearer(userToken));
 
       expect(res.status).toBe(200);
       expect(res.body).toHaveLength(2);
@@ -120,20 +119,20 @@ describe('Vehicles API', () => {
     it('returns a single vehicle', async () => {
       const created = await createVehicle(ctx.app, adminToken);
 
-      const res = await request(ctx.app).get(`/api/vehicles/${created.id}`).set(auth(userToken));
+      const res = await request(ctx.app).get(`/api/vehicles/${created.id}`).set(bearer(userToken));
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual(created);
     });
 
     it('returns 404 for an unknown id', async () => {
-      const res = await request(ctx.app).get('/api/vehicles/999').set(auth(userToken));
+      const res = await request(ctx.app).get('/api/vehicles/999').set(bearer(userToken));
 
       expect(res.status).toBe(404);
     });
 
     it('returns 400 for a non-numeric id', async () => {
-      const res = await request(ctx.app).get('/api/vehicles/abc').set(auth(userToken));
+      const res = await request(ctx.app).get('/api/vehicles/abc').set(bearer(userToken));
 
       expect(res.status).toBe(400);
     });
@@ -148,7 +147,7 @@ describe('Vehicles API', () => {
     });
 
     const search = (query: Record<string, string | number>) =>
-      request(ctx.app).get('/api/vehicles/search').query(query).set(auth(userToken));
+      request(ctx.app).get('/api/vehicles/search').query(query).set(bearer(userToken));
 
     const models = (body: Array<{ model: string }>) => body.map((v) => v.model).sort();
 
@@ -219,7 +218,7 @@ describe('Vehicles API', () => {
 
       const res = await request(ctx.app)
         .put(`/api/vehicles/${created.id}`)
-        .set(auth(adminToken))
+        .set(bearer(adminToken))
         .send({ price: 25500, model: 'Camry SE' });
 
       expect(res.status).toBe(200);
@@ -228,9 +227,9 @@ describe('Vehicles API', () => {
 
     it('persists the update', async () => {
       const created = await createVehicle(ctx.app, adminToken);
-      await request(ctx.app).put(`/api/vehicles/${created.id}`).set(auth(adminToken)).send({ price: 1 });
+      await request(ctx.app).put(`/api/vehicles/${created.id}`).set(bearer(adminToken)).send({ price: 1 });
 
-      const res = await request(ctx.app).get(`/api/vehicles/${created.id}`).set(auth(userToken));
+      const res = await request(ctx.app).get(`/api/vehicles/${created.id}`).set(bearer(userToken));
 
       expect(res.body.price).toBe(1);
     });
@@ -238,7 +237,7 @@ describe('Vehicles API', () => {
     it('forbids regular users from updating', async () => {
       const created = await createVehicle(ctx.app, adminToken);
 
-      const res = await request(ctx.app).put(`/api/vehicles/${created.id}`).set(auth(userToken)).send({ price: 1 });
+      const res = await request(ctx.app).put(`/api/vehicles/${created.id}`).set(bearer(userToken)).send({ price: 1 });
 
       expect(res.status).toBe(403);
     });
@@ -246,7 +245,7 @@ describe('Vehicles API', () => {
     it('rejects invalid values with 400', async () => {
       const created = await createVehicle(ctx.app, adminToken);
 
-      const res = await request(ctx.app).put(`/api/vehicles/${created.id}`).set(auth(adminToken)).send({ price: -5 });
+      const res = await request(ctx.app).put(`/api/vehicles/${created.id}`).set(bearer(adminToken)).send({ price: -5 });
 
       expect(res.status).toBe(400);
     });
@@ -254,13 +253,13 @@ describe('Vehicles API', () => {
     it('rejects an empty update with 400', async () => {
       const created = await createVehicle(ctx.app, adminToken);
 
-      const res = await request(ctx.app).put(`/api/vehicles/${created.id}`).set(auth(adminToken)).send({});
+      const res = await request(ctx.app).put(`/api/vehicles/${created.id}`).set(bearer(adminToken)).send({});
 
       expect(res.status).toBe(400);
     });
 
     it('returns 404 for an unknown vehicle', async () => {
-      const res = await request(ctx.app).put('/api/vehicles/999').set(auth(adminToken)).send({ price: 1 });
+      const res = await request(ctx.app).put('/api/vehicles/999').set(bearer(adminToken)).send({ price: 1 });
 
       expect(res.status).toBe(404);
     });
@@ -270,8 +269,8 @@ describe('Vehicles API', () => {
     it('lets an admin delete a vehicle', async () => {
       const created = await createVehicle(ctx.app, adminToken);
 
-      const res = await request(ctx.app).delete(`/api/vehicles/${created.id}`).set(auth(adminToken));
-      const after = await request(ctx.app).get(`/api/vehicles/${created.id}`).set(auth(adminToken));
+      const res = await request(ctx.app).delete(`/api/vehicles/${created.id}`).set(bearer(adminToken));
+      const after = await request(ctx.app).get(`/api/vehicles/${created.id}`).set(bearer(adminToken));
 
       expect(res.status).toBe(204);
       expect(after.status).toBe(404);
@@ -280,13 +279,13 @@ describe('Vehicles API', () => {
     it('forbids regular users from deleting', async () => {
       const created = await createVehicle(ctx.app, adminToken);
 
-      const res = await request(ctx.app).delete(`/api/vehicles/${created.id}`).set(auth(userToken));
+      const res = await request(ctx.app).delete(`/api/vehicles/${created.id}`).set(bearer(userToken));
 
       expect(res.status).toBe(403);
     });
 
     it('returns 404 for an unknown vehicle', async () => {
-      const res = await request(ctx.app).delete('/api/vehicles/999').set(auth(adminToken));
+      const res = await request(ctx.app).delete('/api/vehicles/999').set(bearer(adminToken));
 
       expect(res.status).toBe(404);
     });

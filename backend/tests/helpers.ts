@@ -68,3 +68,6 @@ export async function createVehicle(
   }
   return res.body;
 }
+
+/** Authorization header for a JWT. */
+export const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });

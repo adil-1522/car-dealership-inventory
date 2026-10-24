@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { buildTestContext, createVehicle, loginAsAdmin, registerUser, TestContext } from './helpers';
+import { bearer, buildTestContext, createVehicle, loginAsAdmin, registerUser, TestContext } from './helpers';
 
 describe('Inventory API', () => {
   let ctx: TestContext;
@@ -14,11 +14,9 @@ describe('Inventory API', () => {
 
   afterEach(() => ctx.db.close());
 
-  const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
-
   describe('POST /api/vehicles/:id/purchase', () => {
     const purchase = (id: number, body: object = {}, token = userToken) =>
-      request(ctx.app).post(`/api/vehicles/${id}/purchase`).set(auth(token)).send(body);
+      request(ctx.app).post(`/api/vehicles/${id}/purchase`).set(bearer(token)).send(body);
 
     it('decreases the quantity by one by default', async () => {
       const vehicle = await createVehicle(ctx.app, adminToken, { quantity: 3 });
@@ -41,7 +39,7 @@ describe('Inventory API', () => {
       const vehicle = await createVehicle(ctx.app, adminToken, { quantity: 2 });
       await purchase(vehicle.id);
 
-      const res = await request(ctx.app).get(`/api/vehicles/${vehicle.id}`).set(auth(userToken));
+      const res = await request(ctx.app).get(`/api/vehicles/${vehicle.id}`).set(bearer(userToken));
 
       expect(res.body.quantity).toBe(1);
     });
@@ -68,7 +66,7 @@ describe('Inventory API', () => {
       const vehicle = await createVehicle(ctx.app, adminToken, { quantity: 2 });
 
       const res = await purchase(vehicle.id, { quantity: 3 });
-      const after = await request(ctx.app).get(`/api/vehicles/${vehicle.id}`).set(auth(userToken));
+      const after = await request(ctx.app).get(`/api/vehicles/${vehicle.id}`).set(bearer(userToken));
 
       expect(res.status).toBe(409);
       expect(after.body.quantity).toBe(2);
@@ -79,7 +77,7 @@ describe('Inventory API', () => {
 
       const results = await Promise.all(Array.from({ length: 6 }, () => purchase(vehicle.id)));
       const succeeded = results.filter((r) => r.status === 200).length;
-      const after = await request(ctx.app).get(`/api/vehicles/${vehicle.id}`).set(auth(userToken));
+      const after = await request(ctx.app).get(`/api/vehicles/${vehicle.id}`).set(bearer(userToken));
 
       expect(succeeded).toBe(3);
       expect(after.body.quantity).toBe(0);
@@ -110,7 +108,7 @@ describe('Inventory API', () => {
 
   describe('POST /api/vehicles/:id/restock', () => {
     const restock = (id: number, body: object, token = adminToken) =>
-      request(ctx.app).post(`/api/vehicles/${id}/restock`).set(auth(token)).send(body);
+      request(ctx.app).post(`/api/vehicles/${id}/restock`).set(bearer(token)).send(body);
 
     it('lets an admin increase the quantity', async () => {
       const vehicle = await createVehicle(ctx.app, adminToken, { quantity: 1 });
@@ -125,7 +123,7 @@ describe('Inventory API', () => {
       const vehicle = await createVehicle(ctx.app, adminToken, { quantity: 0 });
 
       await restock(vehicle.id, { quantity: 2 });
-      const res = await request(ctx.app).post(`/api/vehicles/${vehicle.id}/purchase`).set(auth(userToken));
+      const res = await request(ctx.app).post(`/api/vehicles/${vehicle.id}/purchase`).set(bearer(userToken));
 
       expect(res.status).toBe(200);
       expect(res.body.quantity).toBe(1);
