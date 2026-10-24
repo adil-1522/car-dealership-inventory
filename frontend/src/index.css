@@ -1,0 +1,40 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --color-ink-950: #0b0f17;
+  --color-ink-900: #111827;
+  --color-ink-800: #1a2232;
+  --color-ink-700: #263045;
+  --color-accent-400: #fbbf24;
+  --color-accent-500: #f59e0b;
+}
+
+@layer base {
+  body {
+    @apply bg-ink-950 text-slate-100 antialiased;
+  }
+}
+
+@layer components {
+  .input {
+    @apply w-full rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500
+      focus:border-accent-400 focus:outline-none focus:ring-2 focus:ring-accent-400/30;
+  }
+  .label {
+    @apply mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition
+      disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-accent-400 text-ink-950 hover:bg-accent-500;
+  }
+  .btn-ghost {
+    @apply btn border border-ink-700 text-slate-200 hover:border-slate-500 hover:bg-ink-800;
+  }
+  .btn-danger {
+    @apply btn border border-red-500/40 text-red-300 hover:bg-red-500/10;
+  }
+}
